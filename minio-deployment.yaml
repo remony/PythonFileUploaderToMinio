@@ -1,0 +1,113 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: minio
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: minio-storage-pvc
+  namespace: minio
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: minio-config-pvc
+  namespace: minio
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+data:
+    #echo -n "admin" | base64
+    access: YWRtaW4=
+    #echo -n "P@ssw0rd" | base64
+    secret: UEBzc3cwcmQ=
+kind: Secret
+metadata:
+  name: minio-secret
+  namespace: minio
+type: Opaque
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: minio
+  name: minio
+  labels:
+    component: minio
+spec:
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      component: minio
+  template:
+    metadata:
+      labels:
+        component: minio
+    spec:
+      volumes:
+      - name: storage
+        persistentVolumeClaim:
+          claimName: minio-storage-pvc
+      - name: config
+        persistentVolumeClaim:
+          claimName: minio-config-pvc
+      containers:
+      - name: minio
+        image: minio/minio:latest
+        imagePullPolicy: IfNotPresent
+        args:
+        - server
+        - /storage
+        - --config-dir=/config
+        env:
+          - name: MINIO_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: minio-secret
+                key: access
+          - name: MINIO_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: minio-secret
+                key: secret
+        ports:
+        - containerPort: 9000
+        volumeMounts:
+        - name: storage
+          mountPath: "/storage"
+        - name: config
+          mountPath: "/config"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: minio
+  name: minio
+  labels:
+    component: minio
+spec:
+  # ClusterIP is recommended for production environments.
+  # Change to NodePort if needed per documentation,
+  # but only if you run Minio in a test/trial environment, for example with Minikube.
+  type: LoadBalancer
+  ports:
+    - port: 9000
+      targetPort: 9000
+      protocol: TCP
+  selector:
+    component: minio
+

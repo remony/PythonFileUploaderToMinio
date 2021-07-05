@@ -1,0 +1,45 @@
+apiVersion: v1
+data:
+    #echo -n "admin" | base64
+    access: YWRtaW4=
+    #echo -n "P@ssw0rd" | base64
+    secret: UEBzc3cwcmQ=
+kind: Secret
+metadata:
+  name: minio-secret
+  namespace: default
+type: Opaque
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  namespace: default
+  name: fileuploader
+  labels:
+    component: fileuploader
+spec:
+  selector:
+    matchLabels:
+      component: fileuploader
+  template:
+    metadata:
+      labels:
+        component: fileuploader
+    spec:
+      containers:
+      - name: fileuploader
+        image: registry.home.local/file_uploader:v1
+        env:
+          - name: MINIO_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: minio-secret
+                key: access
+          - name: MINIO_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: minio-secret
+                key: secret
+
+
+
